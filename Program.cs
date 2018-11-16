@@ -4146,9 +4146,343 @@ namespace ImageProcessingTask1Master_sem1
             return phi - times * 2 * Math.PI;
         }
 
+        static void ZeroCrissing(GrayscaleFloatImage image, float sigma, int radius, string FileName)
+        {
+            GrayscaleFloatImage imageCopyExtended_xx = new GrayscaleFloatImage(image.Width + 2 * radius, image.Height + 2 * radius);//for convolution
+            GrayscaleFloatImage imageCopyExtended_yy = new GrayscaleFloatImage(image.Width + 2 * radius, image.Height + 2 * radius);//for convolution
+            GrayscaleFloatImage imageCopy_xx = new GrayscaleFloatImage(image.Width, image.Height);//for result
+            GrayscaleFloatImage imageCopy_yy = new GrayscaleFloatImage(image.Width, image.Height);//for result
 
 
-        static void RidgeDetection(GrayscaleFloatImage image, float sigma, int radius){
+
+            //mirrow edges
+            for (int k = 0; k < image.Width; k++)
+            {
+                for (int l = 0; l < image.Height; l++)
+                {
+                    imageCopyExtended_xx[k + radius, l + radius] = image[k, l];
+                    imageCopyExtended_yy[k + radius, l + radius] = image[k, l];
+                }
+            }
+            //копируем края
+            for (int k = radius; k < image.Width + radius; k++)
+            {
+                for (int l = 0; l < radius; l++)
+                {
+                    imageCopyExtended_xx[k, radius - l - 1] = imageCopyExtended_xx[k, l + radius];
+                    imageCopyExtended_yy[k, radius - l - 1] = imageCopyExtended_yy[k, l + radius];
+                }
+            }
+
+            for (int k = radius; k < image.Width + radius; k++)
+            {
+                for (int l = image.Height + radius; l < image.Height + 2 * radius; l++)
+                {
+                    imageCopyExtended_xx[k, image.Height + radius + image.Height + 2 * radius - l - 1] = imageCopyExtended_xx[k, l - radius];
+                    imageCopyExtended_yy[k, image.Height + radius + image.Height + 2 * radius - l - 1] = imageCopyExtended_yy[k, l - radius];
+                }
+            }
+            for (int k = 0; k < radius; k++)
+            {
+                for (int l = radius; l < image.Height + radius; l++)
+                {
+                    imageCopyExtended_xx[radius - k - 1, l] = imageCopyExtended_xx[k + radius, l];
+                    imageCopyExtended_yy[radius - k - 1, l] = imageCopyExtended_yy[k + radius, l];
+                }
+            }
+            for (int k = image.Width + radius; k < image.Width + 2 * radius; k++)
+            {
+                for (int l = radius; l < image.Height + radius; l++)
+                {
+                    imageCopyExtended_xx[image.Width + radius + image.Width + 2 * radius - k - 1, l] = imageCopyExtended_xx[k - radius, l];
+                    imageCopyExtended_yy[image.Width + radius + image.Width + 2 * radius - k - 1, l] = imageCopyExtended_yy[k - radius, l];
+                }
+            }
+            /////////////////////////////////////////////////////
+            //копируем уголки
+            for (int k = 0; k < radius; k++)
+            {
+                for (int l = 0; l < radius; l++)
+                {
+                    imageCopyExtended_xx[radius - k - 1, radius - l - 1] = imageCopyExtended_xx[k + radius, l + radius];
+                    imageCopyExtended_yy[radius - k - 1, radius - l - 1] = imageCopyExtended_yy[k + radius, l + radius];
+                }
+            }
+            for (int k = image.Width + radius; k < image.Width + 2 * radius; k++)
+            {
+                for (int l = image.Height + radius; l < image.Height + 2 * radius; l++)
+                {
+                    imageCopyExtended_xx[image.Width + radius + image.Width + 2 * radius - k - 1, image.Height + radius + image.Height + 2 * radius - l - 1] = imageCopyExtended_xx[k - radius - 1, l - radius - 1];
+                    imageCopyExtended_yy[image.Width + radius + image.Width + 2 * radius - k - 1, image.Height + radius + image.Height + 2 * radius - l - 1] = imageCopyExtended_yy[k - radius - 1, l - radius - 1];
+                }
+            }
+            for (int k = image.Width + radius; k < image.Width + 2 * radius; k++)
+            {
+                for (int l = 0; l < radius; l++)
+                {
+                    imageCopyExtended_xx[image.Width + radius + image.Width + 2 * radius - k - 1, radius - l - 1] = imageCopyExtended_xx[k - radius, l + radius];
+                    imageCopyExtended_yy[image.Width + radius + image.Width + 2 * radius - k - 1, radius - l - 1] = imageCopyExtended_yy[k - radius, l + radius];
+                }
+            }
+            for (int k = 0; k < radius; k++)
+            {
+                for (int l = image.Height + radius; l < image.Height + 2 * radius; l++)
+                {
+                    imageCopyExtended_xx[radius - k - 1, image.Height + radius + image.Height + 2 * radius - l - 1] = imageCopyExtended_xx[k + radius, l - radius];
+                    imageCopyExtended_yy[radius - k - 1, image.Height + radius + image.Height + 2 * radius - l - 1] = imageCopyExtended_yy[k + radius, l - radius];
+                }
+            }
+            ////////////////////////////////////////////////////////////////////////
+            //froming Kernels 
+            ///////////////////////////////////////////////////////////////////////
+            float[] Kernel = new float[radius * 2 + 1];
+            //float[] KernelDerivative = new float[radius * 2 + 1];
+            float[] KernelSecondDerivative = new float[radius * 2 + 1];
+            float SumKernel = 0;
+            for (int k = -radius; k < radius + 1; k++)
+            {
+                Kernel[k + radius] = (float)GaussFunction(k + radius, radius, sigma);
+                //KernelDerivative[k + radius] = (float)GaussFunctionDerivative(k + radius, radius, sigma);
+                KernelSecondDerivative[k + radius] = (float)GaussFunctionSecondDerivative(k + radius, radius, sigma);
+                SumKernel += Kernel[k + radius];
+            }
+            ////////////////////////////////////////////////////////////////////
+            //First convolution
+            ///////////////////////////////////////////////////////////////////
+            for (int y = radius; y < imageCopyExtended_xx.Height - radius; y++)
+            {
+                for (int x = radius; x < imageCopyExtended_xx.Width - radius; x++)
+                {
+                    float sum_xx = 0;
+                    float sum_xy = 0;
+                    float sum_yy = 0;
+                    for (int k = -radius; k < radius + 1; k++)
+                    {
+                        sum_xx += imageCopyExtended_xx[x + k, y] * KernelSecondDerivative[k + radius];
+                        //sum_xy += imageCopyExtended_xy[x + k, y] * KernelDerivative[k + radius];
+                        sum_yy += imageCopyExtended_yy[x + k, y] * Kernel[k + radius];
+                    }
+                    imageCopy_xx[x - radius, y - radius] = sum_xx;
+                    //imageCopy_xy[x - radius, y - radius] = sum_xy;
+                    imageCopy_yy[x - radius, y - radius] = sum_yy;
+
+                }
+            }
+            ////////////////////////////////////////////////////////////////////////
+            //ImageIO.ImageToFile(imageCopy_xx, "testCells/output/ridges_tmp/xx.bmp");
+            //ImageIO.ImageToFile(imageCopy_xy, "testCells/output/ridges_tmp/xy.bmp");
+            //ImageIO.ImageToFile(imageCopy_yy, "testCells/output/ridges_tmp/yy.bmp");
+            ////////////////////////////////////////////////////////////////////////
+            //копируем в середину
+            for (int k = 0; k < image.Width; k++)
+            {
+                for (int l = 0; l < image.Height; l++)
+                {
+                    imageCopyExtended_xx[k + radius, l + radius] = imageCopy_xx[k, l];
+                    //imageCopyExtended_xy[k + radius, l + radius] = imageCopy_xy[k, l];
+                    imageCopyExtended_yy[k + radius, l + radius] = imageCopy_yy[k, l];
+                }
+            }
+            //копируем края
+            for (int k = radius; k < image.Width + radius; k++)
+            {
+                for (int l = 0; l < radius; l++)
+                {
+
+                    imageCopyExtended_xx[k, radius - l - 1] = imageCopyExtended_xx[k, l + radius];
+                    //imageCopyExtended_xy[k, radius - l - 1] = imageCopyExtended_xy[k, l + radius];
+                    imageCopyExtended_yy[k, radius - l - 1] = imageCopyExtended_yy[k, l + radius];
+
+                }
+            }
+
+            for (int k = radius; k < image.Width + radius; k++)
+            {
+                for (int l = image.Height + radius; l < image.Height + 2 * radius; l++)
+                {
+
+                    imageCopyExtended_xx[k, image.Height + radius + image.Height + 2 * radius - l - 1] = imageCopyExtended_xx[k, l - radius];
+                    imageCopyExtended_yy[k, image.Height + radius + image.Height + 2 * radius - l - 1] = imageCopyExtended_yy[k, l - radius];
+
+                }
+            }
+            for (int k = 0; k < radius; k++)
+            {
+                for (int l = radius; l < image.Height + radius; l++)
+                {
+
+                    imageCopyExtended_xx[radius - k - 1, l] = imageCopyExtended_xx[k + radius, l];
+                    imageCopyExtended_yy[radius - k - 1, l] = imageCopyExtended_yy[k + radius, l];
+
+                }
+            }
+            for (int k = image.Width + radius; k < image.Width + 2 * radius; k++)
+            {
+                for (int l = radius; l < image.Height + radius; l++)
+                {
+
+                    imageCopyExtended_xx[image.Width + radius + image.Width + 2 * radius - k - 1, l] = imageCopyExtended_xx[k - radius, l];
+                    imageCopyExtended_yy[image.Width + radius + image.Width + 2 * radius - k - 1, l] = imageCopyExtended_yy[k - radius, l];
+
+                }
+            }
+            /////////////////////////////////////////////////////
+            //копируем уголки
+            for (int k = 0; k < radius; k++)
+            {
+                for (int l = 0; l < radius; l++)
+                {
+
+                    imageCopyExtended_xx[radius - k - 1, radius - l - 1] = imageCopyExtended_xx[k + radius, l + radius];
+                    imageCopyExtended_yy[radius - k - 1, radius - l - 1] = imageCopyExtended_yy[k + radius, l + radius];
+
+                }
+            }
+
+            for (int k = image.Width + radius; k < image.Width + 2 * radius; k++)
+            {
+                for (int l = image.Height + radius; l < image.Height + 2 * radius; l++)
+                {
+
+                    imageCopyExtended_xx[image.Width + radius + image.Width + 2 * radius - k - 1, image.Height + radius + image.Height + 2 * radius - l - 1] = imageCopyExtended_xx[k - radius - 1, l - radius - 1];
+                    imageCopyExtended_yy[image.Width + radius + image.Width + 2 * radius - k - 1, image.Height + radius + image.Height + 2 * radius - l - 1] = imageCopyExtended_yy[k - radius - 1, l - radius - 1];
+
+                }
+            }
+            for (int k = image.Width + radius; k < image.Width + 2 * radius; k++)
+            {
+                for (int l = 0; l < radius; l++)
+                {
+
+                    imageCopyExtended_xx[image.Width + radius + image.Width + 2 * radius - k - 1, radius - l - 1] = imageCopyExtended_xx[k - radius, l + radius];
+                    imageCopyExtended_yy[image.Width + radius + image.Width + 2 * radius - k - 1, radius - l - 1] = imageCopyExtended_yy[k - radius, l + radius];
+
+                }
+            }
+            for (int k = 0; k < radius; k++)
+            {
+                for (int l = image.Height + radius; l < image.Height + 2 * radius; l++)
+                {
+
+                    imageCopyExtended_xx[radius - k - 1, image.Height + radius + image.Height + 2 * radius - l - 1] = imageCopyExtended_xx[k + radius, l - radius];
+                    imageCopyExtended_yy[radius - k - 1, image.Height + radius + image.Height + 2 * radius - l - 1] = imageCopyExtended_yy[k + radius, l - radius];
+
+                }
+            }
+            //////////////////////////////////////////////////////////////////////////
+            //Second convolution (=> from math)
+            ////////////////////////////////////////////////////////////////////////
+            for (int y = radius; y < imageCopyExtended_xx.Height - radius; y++)
+            {
+                for (int x = radius; x < imageCopyExtended_xx.Width - radius; x++)
+                {
+                    float sum_xx = 0;
+                    float sum_xy = 0;
+                    float sum_yy = 0;
+                    for (int k = -radius; k < radius + 1; k++)
+                    {
+                        sum_xx += imageCopyExtended_xx[x, y + k] * Kernel[k + radius];
+                        sum_yy += imageCopyExtended_yy[x, y + k] * KernelSecondDerivative[k + radius];
+                    }
+                    imageCopy_xx[x - radius, y - radius] = sum_xx;
+                    imageCopy_yy[x - radius, y - radius] = sum_yy;
+
+                }
+            }
+
+
+            GrayscaleFloatImage LaplacianImage  = new GrayscaleFloatImage(image.Width, image.Height);
+
+            ColorFloatImage colorLaplacianImage = new ColorFloatImage(image.Width, image.Height);
+            for (int y = 0; y < imageCopy_xx.Height; y++)
+            {
+                for (int x = 0; x < imageCopy_xx.Width; x++)
+                {
+                   
+                    LaplacianImage[x, y] = imageCopy_xx[x, y] + imageCopy_yy[x, y];
+
+                }
+            }
+
+            float max_LambdaMap_withZeros = LaplacianImage[0, 0];
+            float min_LambdaMap_withZeros = LaplacianImage[0, 0];
+            for (int j = 0; j < LaplacianImage.Height; j++)
+            {
+                for (int i = 0; i < LaplacianImage.Width; i++)
+                {
+                    if (LaplacianImage[i, j] > max_LambdaMap_withZeros) { max_LambdaMap_withZeros = LaplacianImage[i, j]; }
+                    if (LaplacianImage[i, j] < min_LambdaMap_withZeros) { min_LambdaMap_withZeros = LaplacianImage[i, j]; }
+                }
+            }
+            float maxAbs = Math.Max(Math.Abs(max_LambdaMap_withZeros),Math.Abs(min_LambdaMap_withZeros));
+            for (int j = 0; j < LaplacianImage.Height; j++)
+            {
+                for (int i = 0; i < LaplacianImage.Width; i++)
+                {
+
+                    float LambdaMap_withZeros_value = ((LaplacianImage[i, j]));/// (max_LambdaMap_withZeros));//для макс суп уберем пока *256;
+
+
+                    LaplacianImage[i, j] = Math.Abs(LaplacianImage[i, j]) / maxAbs * 255;
+                    ColorFloatPixel p = new ColorFloatPixel();
+                    if (Math.Abs(LambdaMap_withZeros_value) < 800)
+                    {
+                        p.r = 255;
+                        p.g = 0;
+                        p.b = 0;
+                        p.a = Math.Abs(LambdaMap_withZeros_value) * 255;
+                        //imageNonMax[i - 1, j - 1] = p;
+                        colorLaplacianImage[i, j] = p;
+                    }
+                    else
+                        if (LambdaMap_withZeros_value < 0)
+                        {
+                            LambdaMap_withZeros_value = ((LaplacianImage[i, j])) / (max_LambdaMap_withZeros);
+                            p.r = 0;
+                            p.g = Math.Abs(LambdaMap_withZeros_value) * 255;
+                            p.b = 0;
+                            p.a = Math.Abs(LambdaMap_withZeros_value) * 255;
+                            //imageNonMax[i - 1, j - 1] = p;
+                            colorLaplacianImage[i, j] = p;
+                        }
+                        else if (LambdaMap_withZeros_value > 0)
+                        {
+                            LambdaMap_withZeros_value = ((LaplacianImage[i, j])) / (max_LambdaMap_withZeros);
+                            p.r = 0;
+                            p.g = 0;
+                            p.b = Math.Abs(LambdaMap_withZeros_value) * 255;
+                            p.a = Math.Abs(LambdaMap_withZeros_value) * 255;
+                            //imageNonMax[i - 1, j - 1] = p;
+                            colorLaplacianImage[i, j] = p;
+                        }
+                        else
+                        {
+                            p.r = 0;
+                            p.g = 0;
+                            p.b = 0;
+                            p.a = 0;
+                            //imageNonMax[i - 1, j - 1] = p;
+                            colorLaplacianImage[i, j] = p;
+                        }
+
+                    //ColorFloatPixel pixel = new ColorFloatPixel();
+                    //pixel.g = LambdaMap_withZeros[i, j];
+                    //pixel.r = 255;
+                    //pixel.b = 255;
+                    //colorRidge[i, j] = pixel;
+                }
+            }
+            Console.WriteLine(FileName);
+            Console.WriteLine(FileName.Substring(0, FileName.Length - 4) + "_Laplacian.tif");
+            String newFileRidge = FileName.Substring(0, FileName.Length - 4) + "_Laplacian.tif";
+            ImageIO.ImageToFile(LaplacianImage, newFileRidge);
+
+            String newFileRidgeZero = FileName.Substring(0, FileName.Length - 4) + "colorLaplacian.tif";
+            ImageIO.ImageToFile(colorLaplacianImage, newFileRidgeZero);
+
+        }
+
+        static void RidgeDetection(GrayscaleFloatImage image, float sigma, int radius, string FileName){
         
             GrayscaleFloatImage imageCopyExtended_xx = new GrayscaleFloatImage(image.Width + 2 * radius, image.Height + 2 * radius);//for convolution
             GrayscaleFloatImage imageCopyExtended_xy = new GrayscaleFloatImage(image.Width + 2 * radius, image.Height + 2 * radius);//for convolution
@@ -4419,6 +4753,7 @@ namespace ImageProcessingTask1Master_sem1
             //System.IO.StreamWriter file = new System.IO.StreamWriter("Input/angleAnalisys.txt");
             GrayscaleFloatImage directionMap = new GrayscaleFloatImage(image.Width, image.Height);
             GrayscaleFloatImage LambdaMap = new GrayscaleFloatImage(image.Width, image.Height);
+            GrayscaleFloatImage LambdaMap_withZeros = new GrayscaleFloatImage(image.Width, image.Height);
             double RAD2DEG = (180 / Math.PI);
             int[] angleMaxHist = new int[181];
             float[] angleMaxHistNonMax = new float[181];
@@ -4435,29 +4770,96 @@ namespace ImageProcessingTask1Master_sem1
                     float Lambda1 = (imageCopy_xx[x, y] + imageCopy_yy[x, y] + (float)Math.Sqrt(D)) / 2;
                     float Lambda2 = (imageCopy_xx[x, y] + imageCopy_yy[x, y] - (float)Math.Sqrt(D)) / 2;
                     float maxLambda = Math.Abs(Lambda1) > Math.Abs(Lambda2) ? Lambda1 : Lambda2;// Math.Max(Lambda1, Lambda2);
-                    float minLambda = Math.Min(Lambda1, Lambda2);
+                    float minLambda = Math.Abs(Lambda1) > Math.Abs(Lambda2) ? Lambda2 : Lambda1;//Math.Min(Lambda1, Lambda2);
                     image[x, y] = maxLambda;
                     directionMap[x, y] = (float)(RAD2DEG * Math.Atan2((double)(imageCopy_xy[x, y]), (double)(maxLambda - imageCopy_xx[x, y])));
                     LambdaMap[x, y] = maxLambda;
-                    //if (directionMap[x, y] != 0)
-                    {
-                        if (Double.IsNaN(directionMap[x, y]))
-                        {
-                            Console.WriteLine("NaN");
-                        }
-                        double theta = directionMap[x, y];
-                        if (theta < 0)
-                        {
-                            theta = theta + 180;//Math.PI;
-                        }
+                    LambdaMap_withZeros[x, y] = maxLambda;
+                    
+                    ////if (directionMap[x, y] != 0)
+                    //{
+                    //    if (Double.IsNaN(directionMap[x, y]))
+                    //    {
+                    //        Console.WriteLine("NaN");
+                    //    }
+                    //    double theta = directionMap[x, y];
+                    //    if (theta < 0)
+                    //    {
+                    //        theta = theta + 180;//Math.PI;
+                    //    }
 
-                        //}
+                    //    //}
 
-                    }
+                    //}
                 }
             }
+            ZeroCrissing(LambdaMap_withZeros, sigma, radius, FileName);
+            //float max_LambdaMap_withZeros = LambdaMap_withZeros[0, 0];
+            //float min_LambdaMap_withZeros = LambdaMap_withZeros[0, 0];
+            //for (int j = 0; j < LambdaMap_withZeros.Height; j++)
+            //{
+            //    for (int i = 0; i < LambdaMap_withZeros.Width; i++)
+            //    {
+            //        if (LambdaMap_withZeros[i, j] > max_LambdaMap_withZeros) { max_LambdaMap_withZeros = LambdaMap_withZeros[i, j]; }
+            //        if (LambdaMap_withZeros[i, j] < min_LambdaMap_withZeros) { min_LambdaMap_withZeros = LambdaMap_withZeros[i, j]; }
+            //    }
+            //}
 
+            //for (int j = 0; j < LambdaMap_withZeros.Height; j++)
+            //{
+            //    for (int i = 0; i < LambdaMap_withZeros.Width; i++)
+            //    {
+                    
+            //        float LambdaMap_withZeros_value = ((LambdaMap_withZeros[i, j]) );/// (max_LambdaMap_withZeros));//для макс суп уберем пока *256;
 
+            //        ColorFloatPixel p = new ColorFloatPixel();
+            //        if (Math.Abs(LambdaMap_withZeros_value) < 1)
+            //        {
+            //            p.r =   255;
+            //            p.g = 0;
+            //            p.b = 0;
+            //            p.a = Math.Abs(LambdaMap_withZeros_value) * 255;
+            //            //imageNonMax[i - 1, j - 1] = p;
+            //            colorRidge[i, j] = p;
+            //        }
+            //        else 
+            //        if (LambdaMap_withZeros_value < 0)
+            //        {
+            //            LambdaMap_withZeros_value = ((LambdaMap_withZeros[i, j]))/ (max_LambdaMap_withZeros);
+            //            p.r = 0;
+            //            p.g = Math.Abs(LambdaMap_withZeros_value) * 255;
+            //            p.b = 0;
+            //            p.a = Math.Abs(LambdaMap_withZeros_value) * 255;
+            //            //imageNonMax[i - 1, j - 1] = p;
+            //            colorRidge[i, j] = p;
+            //        }
+            //        else if (LambdaMap_withZeros_value > 0)
+            //        {
+            //            LambdaMap_withZeros_value = ((LambdaMap_withZeros[i, j])) / (max_LambdaMap_withZeros);
+            //            p.r = 0;
+            //            p.g = 0;
+            //            p.b = Math.Abs(LambdaMap_withZeros_value) * 255;
+            //            p.a = Math.Abs(LambdaMap_withZeros_value) * 255;
+            //            //imageNonMax[i - 1, j - 1] = p;
+            //            colorRidge[i, j] = p;
+            //        }
+            //        else
+            //        {
+            //            p.r = 0;
+            //            p.g = 0;
+            //            p.b = 0;
+            //            p.a = 0;
+            //            //imageNonMax[i - 1, j - 1] = p;
+            //            colorRidge[i, j] = p;
+            //        }
+                    
+            //        //ColorFloatPixel pixel = new ColorFloatPixel();
+            //        //pixel.g = LambdaMap_withZeros[i, j];
+            //        //pixel.r = 255;
+            //        //pixel.b = 255;
+            //        //colorRidge[i, j] = pixel;
+            //    }
+            //}
 
             //пока не будем портить т к нон макс
             float max = image[0, 0];
@@ -4481,7 +4883,7 @@ namespace ImageProcessingTask1Master_sem1
                     pixel.g = image[i, j];
                     pixel.r = 255;
                     pixel.b = 255;
-                    colorRidge[i, j] = pixel;
+                    //colorRidge[i, j] = pixel;
                 }
             }
             ///////////////////////////////////////////////////////
@@ -4544,23 +4946,25 @@ namespace ImageProcessingTask1Master_sem1
             ///////////////////////////////////////////////////////
             //<drawing derivatives/> , it should be removed it future
             ///////////////////////////////////////////////////////
-            ImageIO.ImageToFile(image, "testCells/output/ridges_tmp/image_ridge.bmp");
+            //ImageIO.ImageToFile(image, "testCells/output/ridges_tmp/image_ridge.bmp");
             //ImageIO.ImageToFile(colorRidge, "Input/Output/image_ClorRidge.bmp");
 
-            ImageIO.ImageToFile(imageCopy_xx, "testCells/output/ridges_tmp/xx.bmp");
-            ImageIO.ImageToFile(imageCopy_xy, "testCells/output/ridges_tmp/xy.bmp");
-            ImageIO.ImageToFile(imageCopy_yy, "testCells/output/ridges_tmp/yy.bmp");
+            //ImageIO.ImageToFile(imageCopy_xx, "testCells/output/ridges_tmp/xx.bmp");
+            //ImageIO.ImageToFile(imageCopy_xy, "testCells/output/ridges_tmp/xy.bmp");
+            //ImageIO.ImageToFile(imageCopy_yy, "testCells/output/ridges_tmp/yy.bmp");
 
-            ImageIO.ImageToFile(image, "testCells/output/ridges_tmp/image.tif");
-            GrayscaleFloatImage tmp01 = ImageIO.FileToGrayscaleFloatImage("testCells/output/ridges_tmp/image.tif");
-            eqhist(tmp01);
-            ImageIO.ImageToFile(tmp01, "testCells/output/ridges_tmp/RidgeEqhistTmp01.tif");
+            //ImageIO.ImageToFile(image, "testCells/output/ridges_tmp/image.tif");
+            //GrayscaleFloatImage tmp01 = ImageIO.FileToGrayscaleFloatImage("testCells/output/ridges_tmp/image.tif");
+            //eqhist(tmp01);
+            //ImageIO.ImageToFile(tmp01, "testCells/output/ridges_tmp/RidgeEqhistTmp01.tif");
 
 
             //////////////////////////////////////////////////////////////////
             //ну а теперь нон максимум сапрешшн ...вообще хорошо бы его в отдельную фнкцию
             /////////////////////////////////////////////////////////////////
             ColorFloatImage imageNonMax = new ColorFloatImage(image.Width, image.Height);
+            ColorFloatImage ridgePositive = new ColorFloatImage(image.Width, image.Height);
+            ColorFloatImage ridgeNegative = new ColorFloatImage(image.Width, image.Height);
             GrayscaleFloatImage imageNonMax_gray = new GrayscaleFloatImage(image.Width, image.Height);
            
             for (int i = 1; i < image.Width - 1; i++)
@@ -4593,15 +4997,18 @@ namespace ImageProcessingTask1Master_sem1
                         compareTo[1] = image[i - 1, j - 1];
                     }
 
+                    //...............................................................
                     ///это можно убрать, тогда будут жиирные линии
                     //if ((Math.Abs(imageNonMaxValue) <= Math.Abs(compareTo[0])) || (Math.Abs(imageNonMaxValue) <= Math.Abs(compareTo[1])))
                     //{
                     //    imageNonMaxValue = 0;
                     //}
-                    //if (Math.Abs(imageNonMaxValue) < 0.3) {
+                    //if (Math.Abs(imageNonMaxValue) < 0.03)
+                    //{
                     //    imageNonMaxValue = 0;
                     //}
                     ///
+                    //...................................................................
 
                     ColorFloatPixel p = new ColorFloatPixel();
                     if (imageNonMaxValue < 0)
@@ -4612,6 +5019,7 @@ namespace ImageProcessingTask1Master_sem1
                         p.a = Math.Abs(imageNonMaxValue) * 255;
                         //imageNonMax[i - 1, j - 1] = p;
                         imageNonMax[i, j] = p;
+                        ridgeNegative[i, j] = p;
                     }
                     else if (imageNonMaxValue > 0)
                     {
@@ -4621,6 +5029,7 @@ namespace ImageProcessingTask1Master_sem1
                         p.a = Math.Abs(imageNonMaxValue) * 255;
                         //imageNonMax[i - 1, j - 1] = p;
                         imageNonMax[i, j] = p;
+                        ridgePositive[i, j] = p;
                     }
                     else
                     {
@@ -4630,6 +5039,7 @@ namespace ImageProcessingTask1Master_sem1
                         p.a = 0;
                         //imageNonMax[i - 1, j - 1] = p;
                         imageNonMax[i, j] = p;
+                        ridgeNegative[i, j] = p;
                     }
 
 
@@ -4718,484 +5128,857 @@ namespace ImageProcessingTask1Master_sem1
             }
 
             
-            ImageIO.ImageToFile(imageNonMax, "testCells/output/ridges_tmp/Ridge.tif");
-            ImageIO.ImageToFile(imageNonMax_gray, "testCells/output/ridges_tmp/NMS_gray.tif");
-            ImageIO.ImageToFile(imageNonMax, "testCells/output/Ridge.tif");
-            ImageIO.ImageToFile(imageNonMax_gray, "testCells/output/NMS_gray.tif");
+            //ImageIO.ImageToFile(imageNonMax, "testCells/output/ridges_tmp/Ridge.tif");
+            //ImageIO.ImageToFile(imageNonMax_gray, "testCells/output/ridges_tmp/NMS_gray.tif");
+            //ImageIO.ImageToFile(imageNonMax, "testCells/output/Ridge.tif");
+            //ImageIO.ImageToFile(imageNonMax_gray, "testCells/output/NMS_gray.tif");
 
-            GrayscaleFloatImage tmp = ImageIO.FileToGrayscaleFloatImage("testCells/output/ridges_tmp/Ridge.tif");
-            eqhist(tmp);
-            ImageIO.ImageToFile(tmp, "testCells/output/RidgeEqhistTmp.tif");
+            //GrayscaleFloatImage tmp = ImageIO.FileToGrayscaleFloatImage("testCells/output/ridges_tmp/Ridge.tif");
+            //eqhist(tmp);
+            //ImageIO.ImageToFile(tmp, "testCells/output/RidgeEqhistTmp.tif");
+            //ImageIO.ImageToFile(imageNonMax, "testCells/output/Ridge.tif");
+            Console.WriteLine(FileName);
+            Console.WriteLine(FileName.Substring(0, FileName.Length-4)+"_Ridge.tif");
+            String newFileRidge = FileName.Substring(0, FileName.Length - 4) + "_Ridge.tif";
+            ImageIO.ImageToFile(imageNonMax, newFileRidge);
+
+            //String newFileRidgeZero = FileName.Substring(0, FileName.Length - 4) + "_RidgeZeroTry.tif";
+            //ImageIO.ImageToFile(colorRidge, newFileRidgeZero);
+
+            String newFileRidgeZero_ridgeNegative = FileName.Substring(0, FileName.Length - 4) + "_ridgeNegative.tif";
+            ImageIO.ImageToFile(ridgeNegative, newFileRidgeZero_ridgeNegative);
+
+            String newFileRidgeZero_ridgePositive = FileName.Substring(0, FileName.Length - 4) + "_ridgePositive.tif";
+            ImageIO.ImageToFile(ridgePositive, newFileRidgeZero_ridgePositive);
+
+        }
+
+        static void CannyWithOutNonMax(GrayscaleFloatImage img, float sigma, float t1, float t2, string OutFileName)
+        {
+            GrayscaleFloatImage dx, dy, grad, nms, res;
+            dx = DerivativeX(sigma, img, (int)(2 * sigma));// или собель по х
+            dy = DerivativeY(sigma, img, (int)(2 * sigma));//собель по y
+
+            //ImageIO.ImageToFile(dy, "cannyTest/dy.png");
+            //ImageIO.ImageToFile(dx, "cannyTest/dx.png");
+
+            grad = new GrayscaleFloatImage(img.Width, img.Height);
+            res = new GrayscaleFloatImage(img.Width, img.Height);
+            nms = new GrayscaleFloatImage(img.Width, img.Height);
+            for (int x = 0; x < img.Width; x++)
+            {
+                for (int y = 0; y < img.Height; y++)
+                {
+                    grad[x, y] = (float)Math.Sqrt(dx[x, y] * dx[x, y] + dy[x, y] * dy[x, y]);
+                }
+            }
+            ImageIO.ImageToFile(grad, "cannyTest/Gradient.png");
+            for (int x = 1; x < img.Width - 1; x++)
+            {
+                for (int y = 1; y < img.Height - 1; y++)//странно, почему то не работает без -1
+                {
+                    float valueNMS;
+                    if (x < 1 || x >= img.Width || y < 1 || y >= img.Height || y == img.Height || x == img.Width)
+                        valueNMS = 0.0f;
+
+                    float gval = grad[x, y];
+                    float tan = (dx[x, y] == 0.0f ? 10000.0f : dy[x, y] / dx[x, y]);
+
+                    if (tan > 2.5f || tan < -2.5f)  //vert
+                    {
+                        if (gval > grad[x, y - 1] && gval > grad[x, y + 1])
+                            valueNMS = gval;
+                        else
+                            valueNMS = 0.0f;
+                    }
+                    else if (tan > 0.4f && tan <= 2.5f)//21.8-68.2
+                    {
+                        if (gval > grad[x - 1, y - 1] && gval > grad[x + 1, y + 1])
+                            valueNMS = gval;
+                        else
+                            valueNMS = 0.0f;
+                    }
+                    else if (tan > -0.4f && tan <= 0.4f)//21.8-(-21.8)  (vert)
+                    {
+                        if (gval > grad[x - 1, y] && gval > grad[x + 1, y])
+                            valueNMS = gval;
+                        else
+                            valueNMS = 0.0f;
+                    }
+                    else
+                    {
+                        if (gval > grad[x - 1, y + 1] && gval > grad[x + 1, y - 1])
+                            valueNMS = gval;
+                        else
+                            valueNMS = 0.0f;
+                    }
+                    //res[x, y] =
+                    nms[x, y] = valueNMS;
+                    //res[x, y] =
+                    //    nms[x, y] = NonMaxSupPixel(x, y, img);
+                }
+            }
+            //ImageIO.ImageToFile(nms, "cannyTest/NMS.png");
+            //grad = (dx * dx + dy * dy).Sqrt().Cast<float>();// вычисление градинтов, что есть dx?dy?и квадрат из них попиксельно ?
+            //res = nms = NonMaximumSuppression(dx, dy, grad);// подавление не максимумов
+            /////////////////////////////////////////////////////////////////////////////////
+            //aplyAutoTreshhold
+            //res = new GrayscaleFloatImage(grad.Width, grad.Height);
+            //float thr_tweak = t1;//1.0f;
+            //float max_g2 = grad.Max();// ммаксимальное значение градиента
+            //float max_g2 = nms[0, 0];
+            //for (int x = 0; x < nms.Width; x++)
+            //{
+            //    for (int y = 0; y < nms.Height; y++)
+            //    {
+            //        if (nms[x, y] > max_g2) { max_g2 = nms[x, y]; }
+            //    }
+            //}
+
+
+            //float thr1 = max_g2 * t1;// *0.2f;//0.2f * thr_tweak;     // The most strongest line segments
+            ////float thr2 = thr1 * 0.1f;                   // Other line segments, maximum canny edge criterion
+            //float thr3 = max_g2 * t2;// 0.1f;                   // Minimum canny edge criterion
+            /////////////////////////////////////////////////////////////////////////////////////
+            ////hysteresis
+            ////float thr_strongest=thr1;
+            //float thr_strong = thr3;
+            //float thr_weak = thr1;
+            //for (int x = 0; x < res.Width; x++)
+            //{
+            //    for (int y = 0; y < res.Height; y++)
+            //    {
+            //        if (nms[x, y] > thr_strong)
+            //        {
+            //            res[x, y] = 255.0f;
+            //        }
+            //        else if (nms[x, y] > thr_weak)
+            //        {
+            //            res[x, y] = 128.0f;
+            //        }
+            //        else
+            //        {
+            //            res[x, y] = 0.0f;
+            //        }//{ res[x, y] = 1.0f; }
+            //        //else { res[x, y] = 0.0f; }
+            //    }
+            //}
+
+            //Queue<Point> qp = new Queue<Point>();  //создаем список(очередь) точек, градиент в которых больше большого порога
+            //for (int j = 0; j < nms.Height; j++)
+            //    for (int i = 0; i < nms.Width; i++)
+            //        if (nms[i, j] > thr_strong)
+            //            qp.Enqueue(new Point(i, j));
+
+            ////ImageIO.ImageToFile(res, "cannyTest/TestTreshold_beforeH.png"); 
+            //// Гистерезис
+            //while (qp.Count > 0)
+            //{
+            //    Point point = qp.Dequeue(); //берем первую точку 
+            //    if (point.X > 0 && res[point.X - 1, point.Y] == 128.0f && nms[point.X - 1, point.Y] > thr_weak)
+            //    {
+            //        res[point.X - 1, point.Y] = 255.0f;
+            //        qp.Enqueue(new Point(point.X - 1, point.Y));
+            //    }
+            //    if (point.X < nms.Width - 1 && res[point.X + 1, point.Y] == 128.0f && nms[point.X + 1, point.Y] > thr_weak)
+            //    {
+            //        res[point.X + 1, point.Y] = 255.0f;
+            //        qp.Enqueue(new Point(point.X + 1, point.Y));
+            //    }
+            //    if (point.Y > 0 && res[point.X, point.Y - 1] == 128.0f && nms[point.X, point.Y - 1] > thr_weak)
+            //    {
+            //        res[point.X, point.Y - 1] = 255.0f;
+            //        qp.Enqueue(new Point(point.X, point.Y - 1));
+            //    }
+            //    if (point.Y < nms.Height - 1 && res[point.X, point.Y + 1] == 128.0f && nms[point.X, point.Y + 1] > thr_weak)
+            //    {
+            //        res[point.X, point.Y + 1] = 255.0f;
+            //        qp.Enqueue(new Point(point.X, point.Y + 1));
+            //    }
+
+
+            //    if (point.Y < nms.Height - 1 && point.X < nms.Width - 1 && res[point.X + 1, point.Y + 1] == 128.0f && nms[point.X + 1, point.Y + 1] > thr_weak)
+            //    {
+            //        res[point.X + 1, point.Y + 1] = 255.0f;
+            //        qp.Enqueue(new Point(point.X + 1, point.Y + 1));
+            //    }
+            //    if (point.Y < nms.Height - 1 && point.X > 0 && res[point.X - 1, point.Y + 1] == 128.0f && nms[point.X - 1, point.Y + 1] > thr_weak)
+            //    {
+            //        res[point.X - 1, point.Y + 1] = 255.0f;
+            //        qp.Enqueue(new Point(point.X - 1, point.Y + 1));
+            //    }
+            //    if (point.X < nms.Width - 1 && point.Y > 0 && res[point.X + 1, point.Y - 1] == 128.0f && nms[point.X + 1, point.Y - 1] > thr_weak)
+            //    {
+            //        res[point.X + 1, point.Y - 1] = 255.0f;
+            //        qp.Enqueue(new Point(point.X + 1, point.Y - 1));
+            //    }
+            //    if (point.Y > 0 && point.X > 0 && res[point.X - 1, point.Y - 1] == 128.0f && nms[point.X - 1, point.Y - 1] > thr_weak)
+            //    {
+            //        res[point.X - 1, point.Y - 1] = 255.0f;
+            //        qp.Enqueue(new Point(point.X - 1, point.Y - 1));
+            //    }
+
+
+            //}
+            ////ImageIO.ImageToFile(res, "cannyTest/TestTresholdmmm.png"); 
+
+            //for (int x = 0; x < res.Width; x++)
+            //{
+            //    for (int y = 0; y < res.Height; y++)
+            //    {
+            //        if (res[x, y] != 255)
+            //        {
+            //            res[x, y] = 0.0f;
+            //        }
+            //    }
+            //}
+
+            ImageIO.ImageToFile(nms, OutFileName);
+        }
+
+        static void LocalStandartDeviation(GrayscaleFloatImage image, int radius, string FileName)
+        {
+            GrayscaleFloatImage imageCopyExtended = new GrayscaleFloatImage(image.Width + 2 * radius, image.Height + 2 * radius);//for convolution
+            GrayscaleFloatImage imageCopy = new GrayscaleFloatImage(image.Width, image.Height);//for result
+            
+
+
+            //mirrow edges
+            for (int k = 0; k < image.Width; k++)
+            {
+                for (int l = 0; l < image.Height; l++)
+                {
+                    imageCopyExtended[k + radius, l + radius] = image[k, l];
+                }
+            }
+            //копируем края
+            for (int k = radius; k < image.Width + radius; k++)
+            {
+                for (int l = 0; l < radius; l++)
+                {
+                    imageCopyExtended[k, radius - l - 1] = imageCopyExtended[k, l + radius];
+                }
+            }
+
+            for (int k = radius; k < image.Width + radius; k++)
+            {
+                for (int l = image.Height + radius; l < image.Height + 2 * radius; l++)
+                {
+                    imageCopyExtended[k, image.Height + radius + image.Height + 2 * radius - l - 1] = imageCopyExtended[k, l - radius];
+                }
+            }
+            for (int k = 0; k < radius; k++)
+            {
+                for (int l = radius; l < image.Height + radius; l++)
+                {
+                    imageCopyExtended[radius - k - 1, l] = imageCopyExtended[k + radius, l];
+                }
+            }
+            for (int k = image.Width + radius; k < image.Width + 2 * radius; k++)
+            {
+                for (int l = radius; l < image.Height + radius; l++)
+                {
+                    imageCopyExtended[image.Width + radius + image.Width + 2 * radius - k - 1, l] = imageCopyExtended[k - radius, l];
+                }
+            }
+            /////////////////////////////////////////////////////
+            //копируем уголки
+            for (int k = 0; k < radius; k++)
+            {
+                for (int l = 0; l < radius; l++)
+                {
+                    imageCopyExtended[radius - k - 1, radius - l - 1] = imageCopyExtended[k + radius, l + radius];
+                }
+            }
+            for (int k = image.Width + radius; k < image.Width + 2 * radius; k++)
+            {
+                for (int l = image.Height + radius; l < image.Height + 2 * radius; l++)
+                {
+                    imageCopyExtended[image.Width + radius + image.Width + 2 * radius - k - 1, image.Height + radius + image.Height + 2 * radius - l - 1] = imageCopyExtended[k - radius - 1, l - radius - 1];
+                }
+            }
+            for (int k = image.Width + radius; k < image.Width + 2 * radius; k++)
+            {
+                for (int l = 0; l < radius; l++)
+                {
+                    imageCopyExtended[image.Width + radius + image.Width + 2 * radius - k - 1, radius - l - 1] = imageCopyExtended[k - radius, l + radius];
+                }
+            }
+            for (int k = 0; k < radius; k++)
+            {
+                for (int l = image.Height + radius; l < image.Height + 2 * radius; l++)
+                {
+                    imageCopyExtended[radius - k - 1, image.Height + radius + image.Height + 2 * radius - l - 1] = imageCopyExtended[k + radius, l - radius];
+                }
+            }
+            ////////////////////////////////////////////////////////////////////////
+            //froming Kernels 
+            ///////////////////////////////////////////////////////////////////////
+            float[,] Kernel = new float[radius * 2 + 1, radius * 2 + 1];
+            float SumKernel = 0;
+            for (int k = -radius; k < radius + 1; k++)
+            {
+                for (int m = -radius; m < radius + 1; m++)
+                {
+                    Kernel[k + radius, m + radius] = 1;
+                    SumKernel += Kernel[k + radius, m + radius];
+                }
+            }
+            ////////////////////////////////////////////////////////////////////
+            //First convolution
+            ///////////////////////////////////////////////////////////////////
+            for (int y = radius; y < imageCopyExtended.Height - radius; y++)
+            {
+                for (int x = radius; x < imageCopyExtended.Width - radius; x++)
+                {
+                    float sum_conv_meanOfsq = 0;
+                    float sum_conv_sqOfMean = 0;
+                    for (int k = -radius; k < radius + 1; k++)
+                    {
+                        for (int m = -radius; m < radius + 1; m++)
+                        {
+                            sum_conv_meanOfsq += imageCopyExtended[x + k, y + m] * imageCopyExtended[x + k, y + m];
+                            sum_conv_sqOfMean += imageCopyExtended[x + k, y + m];
+                        }
+                    }
+
+                    //imageCopy[x - radius, y - radius] = (sum_conv_meanOfsq - sum_conv_sqOfMean / SumKernel) / SumKernel; 
+                    //нужен корень
+                    imageCopy[x - radius, y - radius] = (float )Math.Sqrt( (sum_conv_meanOfsq - sum_conv_sqOfMean / SumKernel) / SumKernel);
+
+
+                }
+            }
+            ////////////////////////////////////////////////////////////////////////
+            //ImageIO.ImageToFile(imageCopy_xx, "testCells/output/ridges_tmp/xx.bmp");
+            //ImageIO.ImageToFile(imageCopy_xy, "testCells/output/ridges_tmp/xy.bmp");
+            //ImageIO.ImageToFile(imageCopy_yy, "testCells/output/ridges_tmp/yy.bmp");
+            ////////////////////////////////////////////////////////////////////////
+            String newFileSD = FileName.Substring(0, FileName.Length - 4) + "_localStandartDeviation.tif";
+            Console.WriteLine(newFileSD);
+            ImageIO.ImageToFile(imageCopy, newFileSD);
+
+            float max_LSD = imageCopy[0, 0];
+            float min_LSD = imageCopy[0, 0];
+            for (int j = 0; j < imageCopy.Height; j++)
+            {
+                for (int i = 0; i < imageCopy.Width; i++)
+                {
+                    if (imageCopy[i, j] > max_LSD) { max_LSD = imageCopy[i, j]; }
+                    if (imageCopy[i, j] < min_LSD) { min_LSD = imageCopy[i, j]; }
+                }
+            }
+            float maxAbs = Math.Max(Math.Abs(max_LSD), Math.Abs(min_LSD));
+            for (int j = 0; j < imageCopy.Height; j++)
+            {
+                for (int i = 0; i < imageCopy.Width; i++)
+                {
+ 
+                    imageCopy[i, j] = Math.Abs(imageCopy[i, j]) / maxAbs * 255;
+
+                }
+            }
+            newFileSD = FileName.Substring(0, FileName.Length - 4) + "_localStandartDeviationNorm.tif";
+            Console.WriteLine(newFileSD);
+            ImageIO.ImageToFile(imageCopy, newFileSD);
 
 
         }
 
         static void Main(string[] args)
         {
-            try
-            {
-                if (args.Length < 3)
-                {
-                    Console.WriteLine("Not enough arguments.");
-                    Console.ReadLine();
-                    return;
-                }
-                string InputFileName = args[0];
-                string OutputFileName = args[1];
-                string command = args[2];
-                if (!File.Exists(InputFileName))
-                {
-                    Console.WriteLine("File doesn't exist" + "(" + InputFileName + ")");
-                    Console.ReadLine();
-                    return;
-                }
-                ColorFloatImage image = ImageIO.FileToColorFloatImage(InputFileName);
-                GrayscaleFloatImage imageGray = ImageIO.FileToGrayscaleFloatImage(InputFileName);
-                switch (command)
-                {
-                    case "invert":
-                        if (args.Length > 3)
-                        {
-                            Console.WriteLine("Too many arguments.");
-                            Console.ReadLine();
-                            return;
-                        }
-                        InvertImage(image);
-                        ImageIO.ImageToFile(image, OutputFileName);
-                        break;
-                    case "eqhist":
-                        if (args.Length > 3)
-                        {
-                            Console.WriteLine("Too many arguments.");
-                            Console.ReadLine();
-                            return;
-                        }
-                        eqhist(imageGray);
-                        ImageIO.ImageToFile(imageGray, OutputFileName);
-                        break;
-                    case "mirror":// {x|y}"
-                        if (args.Length < 4)
-                        {
-                            Console.WriteLine("Not enough arguments.");
-                            Console.ReadLine();
-                            return;
-                        }
-                        if (args.Length > 4)
-                        {
-                            Console.WriteLine("Too many arguments.");
-                            Console.ReadLine();
-                            return;
-                        }
-                        switch (args[3])
-                        {
-                            case "x":
-                                MirrowXImage(image);
-                                break;
-                            case "y":
-                                MirrowYImage(image);
-                                break;
-                            default:
-                                Console.WriteLine("Wrong parametr.");
-                                Console.ReadLine();
-                                return;
-                                break;
+            //try
+            //{
+            //    if (args.Length < 3)
+            //    {
+            //        Console.WriteLine("Not enough arguments.");
+            //        Console.ReadLine();
+            //        return;
+            //    }
+            //    string InputFileName = args[0];
+            //    string OutputFileName = args[1];
+            //    string command = args[2];
+            //    if (!File.Exists(InputFileName))
+            //    {
+            //        Console.WriteLine("File doesn't exist" + "(" + InputFileName + ")");
+            //        Console.ReadLine();
+            //        return;
+            //    }
+            //    ColorFloatImage image = ImageIO.FileToColorFloatImage(InputFileName);
+            //    GrayscaleFloatImage imageGray = ImageIO.FileToGrayscaleFloatImage(InputFileName);
+            //    switch (command)
+            //    {
+            //        case "invert":
+            //            if (args.Length > 3)
+            //            {
+            //                Console.WriteLine("Too many arguments.");
+            //                Console.ReadLine();
+            //                return;
+            //            }
+            //            InvertImage(image);
+            //            ImageIO.ImageToFile(image, OutputFileName);
+            //            break;
+            //        case "eqhist":
+            //            if (args.Length > 3)
+            //            {
+            //                Console.WriteLine("Too many arguments.");
+            //                Console.ReadLine();
+            //                return;
+            //            }
+            //            eqhist(imageGray);
+            //            ImageIO.ImageToFile(imageGray, OutputFileName);
+            //            break;
+            //        case "mirror":// {x|y}"
+            //            if (args.Length < 4)
+            //            {
+            //                Console.WriteLine("Not enough arguments.");
+            //                Console.ReadLine();
+            //                return;
+            //            }
+            //            if (args.Length > 4)
+            //            {
+            //                Console.WriteLine("Too many arguments.");
+            //                Console.ReadLine();
+            //                return;
+            //            }
+            //            switch (args[3])
+            //            {
+            //                case "x":
+            //                    MirrowXImage(image);
+            //                    break;
+            //                case "y":
+            //                    MirrowYImage(image);
+            //                    break;
+            //                default:
+            //                    Console.WriteLine("Wrong parametr.");
+            //                    Console.ReadLine();
+            //                    return;
+            //                    break;
 
-                        }
-                        ImageIO.ImageToFile(image, OutputFileName);
+            //            }
+            //            ImageIO.ImageToFile(image, OutputFileName);
 
-                        break;
-                    case "rotate":// {cw|ccw} (angle)"
-                        if (args.Length < 5)
-                        {
-                            Console.WriteLine("Not enough arguments.");
-                            Console.ReadLine();
-                            return;
-                        }
-                        if (args.Length > 5)
-                        {
-                            Console.WriteLine("Too many arguments.");
-                            Console.ReadLine();
-                            return;
-                        }
-                        float number;
-                        if (!float.TryParse(args[4], out number))
-                        {
-                            Console.WriteLine("Strange number");
-                        }
-                        number = float.Parse(args[4]);
-                        switch (args[3])
-                        {
+            //            break;
+            //        case "rotate":// {cw|ccw} (angle)"
+            //            if (args.Length < 5)
+            //            {
+            //                Console.WriteLine("Not enough arguments.");
+            //                Console.ReadLine();
+            //                return;
+            //            }
+            //            if (args.Length > 5)
+            //            {
+            //                Console.WriteLine("Too many arguments.");
+            //                Console.ReadLine();
+            //                return;
+            //            }
+            //            float number;
+            //            if (!float.TryParse(args[4], out number))
+            //            {
+            //                Console.WriteLine("Strange number");
+            //            }
+            //            number = float.Parse(args[4]);
+            //            switch (args[3])
+            //            {
 
-                            case "cw":
-                                rotateImage(image, true, number, OutputFileName);
-                                break;
-                            case "ccw":
-                                rotateImage(image, true, (-1 * number), OutputFileName);
-                                break;
-                            default:
-                                Console.WriteLine("Wrong parametr.");
-                                Console.ReadLine();
-                                return;
-                                break;
+            //                case "cw":
+            //                    rotateImage(image, true, number, OutputFileName);
+            //                    break;
+            //                case "ccw":
+            //                    rotateImage(image, true, (-1 * number), OutputFileName);
+            //                    break;
+            //                default:
+            //                    Console.WriteLine("Wrong parametr.");
+            //                    Console.ReadLine();
+            //                    return;
+            //                    break;
 
-                        }
+            //            }
 
-                        break;
-                    case "prewitt":// {x|y}"
-                        if (args.Length < 4)
-                        {
-                            Console.WriteLine("Not enough arguments.");
-                            Console.ReadLine();
-                            return;
-                        }
-                        if (args.Length > 4)
-                        {
-                            Console.WriteLine("Too many arguments.");
-                            Console.ReadLine();
-                            return;
-                        }
-                        switch (args[3])
-                        {
-                            case "x":
-                                PrewittImage(imageGray, true);
-                                break;
-                            case "y":
-                                PrewittImage(imageGray, false);
-                                break;
-                            default:
-                                Console.WriteLine("Wrong parametr.");
-                                return;
-                                break;
+            //            break;
+            //        case "prewitt":// {x|y}"
+            //            if (args.Length < 4)
+            //            {
+            //                Console.WriteLine("Not enough arguments.");
+            //                Console.ReadLine();
+            //                return;
+            //            }
+            //            if (args.Length > 4)
+            //            {
+            //                Console.WriteLine("Too many arguments.");
+            //                Console.ReadLine();
+            //                return;
+            //            }
+            //            switch (args[3])
+            //            {
+            //                case "x":
+            //                    PrewittImage(imageGray, true);
+            //                    break;
+            //                case "y":
+            //                    PrewittImage(imageGray, false);
+            //                    break;
+            //                default:
+            //                    Console.WriteLine("Wrong parametr.");
+            //                    return;
+            //                    break;
 
-                        }
-                        ImageIO.ImageToFile(imageGray, OutputFileName);
-                        break;
-                    case "sobel":// {x|y}"
-                        if (args.Length < 4)
-                        {
-                            Console.WriteLine("Not enough arguments.");
-                            Console.ReadLine();
-                            return;
-                        }
-                        if (args.Length > 4)
-                        {
-                            Console.WriteLine("Too many arguments.");
-                            Console.ReadLine();
-                            return;
-                        }
-                        switch (args[3])
-                        {
-                            case "x":
-                                SobelImage(imageGray, true);
-                                break;
-                            case "y":
-                                SobelImage(imageGray, false);
-                                break;
-                            default:
-                                Console.WriteLine("Wrong parametr.");
-                                return;
-                                break;
+            //            }
+            //            ImageIO.ImageToFile(imageGray, OutputFileName);
+            //            break;
+            //        case "sobel":// {x|y}"
+            //            if (args.Length < 4)
+            //            {
+            //                Console.WriteLine("Not enough arguments.");
+            //                Console.ReadLine();
+            //                return;
+            //            }
+            //            if (args.Length > 4)
+            //            {
+            //                Console.WriteLine("Too many arguments.");
+            //                Console.ReadLine();
+            //                return;
+            //            }
+            //            switch (args[3])
+            //            {
+            //                case "x":
+            //                    SobelImage(imageGray, true);
+            //                    break;
+            //                case "y":
+            //                    SobelImage(imageGray, false);
+            //                    break;
+            //                default:
+            //                    Console.WriteLine("Wrong parametr.");
+            //                    return;
+            //                    break;
 
-                        }
-                        ImageIO.ImageToFile(imageGray, OutputFileName);
-                        break;
-                    case "roberts":// {1|2}":
-                        if (args.Length < 4)
-                        {
-                            Console.WriteLine("Not enough arguments.");
-                            Console.ReadLine();
-                            return;
-                        }
-                        if (args.Length > 4)
-                        {
-                            Console.WriteLine("Too many arguments.");
-                            Console.ReadLine();
-                            return;
-                        }
-                        switch (args[3])
-                        {
-                            case "1":
-                                RobertsImage(imageGray, true);
-                                break;
-                            case "2":
-                                RobertsImage(imageGray, false);
-                                break;
-                            default:
-                                Console.WriteLine("Wrong parametr.");
-                                return;
-                                break;
+            //            }
+            //            ImageIO.ImageToFile(imageGray, OutputFileName);
+            //            break;
+            //        case "roberts":// {1|2}":
+            //            if (args.Length < 4)
+            //            {
+            //                Console.WriteLine("Not enough arguments.");
+            //                Console.ReadLine();
+            //                return;
+            //            }
+            //            if (args.Length > 4)
+            //            {
+            //                Console.WriteLine("Too many arguments.");
+            //                Console.ReadLine();
+            //                return;
+            //            }
+            //            switch (args[3])
+            //            {
+            //                case "1":
+            //                    RobertsImage(imageGray, true);
+            //                    break;
+            //                case "2":
+            //                    RobertsImage(imageGray, false);
+            //                    break;
+            //                default:
+            //                    Console.WriteLine("Wrong parametr.");
+            //                    return;
+            //                    break;
 
-                        }
-                        ImageIO.ImageToFile(imageGray, OutputFileName);
-                        break;
-                    case "median":// (rad)"
-                        if (args.Length < 4)
-                        {
-                            Console.WriteLine("Not enough arguments.");
-                            Console.ReadLine();
-                            return;
-                        }
-                        if (args.Length > 4)
-                        {
-                            Console.WriteLine("Too many arguments.");
-                            Console.ReadLine();
-                            return;
-                        }
-                        int rad;
-                        if (!int.TryParse(args[3], out rad))
-                        {
-                            Console.WriteLine("Strange number");
-                        }
-                        rad = int.Parse(args[3]);
-                        MedianImage(image, rad);
-                        ImageIO.ImageToFile(image, OutputFileName);
-                        break;
-                    case "gauss":// (sigma)"
-                        if (args.Length < 4)
-                        {
-                            Console.WriteLine("Not enough arguments.");
-                            Console.ReadLine();
-                            return;
-                        }
-                        if (args.Length > 4)
-                        {
-                            Console.WriteLine("Too many arguments.");
-                            Console.ReadLine();
-                            return;
-                        }
-                        float sigma;
-                        if (!float.TryParse(args[3], out sigma))
-                        {
-                            Console.WriteLine("Strange number");
-                        }
-                        sigma = float.Parse(args[3]);
-                        GaussImage(image, (int)(3 * sigma), sigma);
-                        ImageIO.ImageToFile(image, OutputFileName);
-                        break;
-                    case "gradient":// (sigma)"
-                        if (args.Length < 4)
-                        {
-                            Console.WriteLine("Not enough arguments.");
-                            Console.ReadLine();
-                            return;
-                        }
-                        if (args.Length > 4)
-                        {
-                            Console.WriteLine("Too many arguments.");
-                            Console.ReadLine();
-                            return;
-                        }
-                        float sigma_grad;
-                        if (!float.TryParse(args[3], out sigma_grad))
-                        {
-                            Console.WriteLine("Strange number");
-                        }
-                        sigma_grad = float.Parse(args[3]);
-                        GradientFromGaussImage(imageGray, (int)(3 * sigma_grad), sigma_grad);
-                        ImageIO.ImageToFile(imageGray, OutputFileName);
-                        break;
-                    case "up_billinear":// (rad)"
-                        if (args.Length < 4)
-                        {
-                            Console.WriteLine("Not enough arguments.");
-                            Console.ReadLine();
-                            return;
-                        }
-                        if (args.Length > 4)
-                        {
-                            Console.WriteLine("Too many arguments.");
-                            Console.ReadLine();
-                            return;
-                        }
-                        float number_up;
-                        if (!float.TryParse(args[3], out number_up))
-                        {
-                            Console.WriteLine("Strange number");
-                        }
-                        number_up = float.Parse(args[3]);
-                        BillinearInterpolation(image, number_up, OutputFileName);
-                        break;
-                    case "up_bicubic":// (rad)"
-                        if (args.Length < 4)
-                        {
-                            Console.WriteLine("Not enough arguments.");
-                            Console.ReadLine();
-                            return;
-                        }
-                        if (args.Length > 4)
-                        {
-                            Console.WriteLine("Too many arguments.");
-                            Console.ReadLine();
-                            return;
-                        }
-                        float number_up_bic;
-                        if (!float.TryParse(args[3], out number_up_bic))
-                        {
-                            Console.WriteLine("Strange number");
-                        }
-                        number_up_bic = float.Parse(args[3]);
-                        BicubicInterpolation(image, number_up_bic, OutputFileName);
-                        break;
-                    case "downsample":// (rad)"
-                        if (args.Length < 4)
-                        {
-                            Console.WriteLine("Not enough arguments.");
-                            Console.ReadLine();
-                            return;
-                        }
-                        if (args.Length > 4)
-                        {
-                            Console.WriteLine("Too many arguments.");
-                            Console.ReadLine();
-                            return;
-                        }
-                        float number_down;
-                        if (!float.TryParse(args[3], out number_down))
-                        {
-                            Console.WriteLine("Strange number");
-                        }
-                        number_down = float.Parse(args[3]);
-                        float sigmaDown = (float)Math.Sqrt(0.1f * (number_down * number_down - 1));
-                        GaussImage(image, (int)(3 * sigmaDown), sigmaDown);
+            //            }
+            //            ImageIO.ImageToFile(imageGray, OutputFileName);
+            //            break;
+            //        case "median":// (rad)"
+            //            if (args.Length < 4)
+            //            {
+            //                Console.WriteLine("Not enough arguments.");
+            //                Console.ReadLine();
+            //                return;
+            //            }
+            //            if (args.Length > 4)
+            //            {
+            //                Console.WriteLine("Too many arguments.");
+            //                Console.ReadLine();
+            //                return;
+            //            }
+            //            int rad;
+            //            if (!int.TryParse(args[3], out rad))
+            //            {
+            //                Console.WriteLine("Strange number");
+            //            }
+            //            rad = int.Parse(args[3]);
+            //            MedianImage(image, rad);
+            //            ImageIO.ImageToFile(image, OutputFileName);
+            //            break;
+            //        case "gauss":// (sigma)"
+            //            if (args.Length < 4)
+            //            {
+            //                Console.WriteLine("Not enough arguments.");
+            //                Console.ReadLine();
+            //                return;
+            //            }
+            //            if (args.Length > 4)
+            //            {
+            //                Console.WriteLine("Too many arguments.");
+            //                Console.ReadLine();
+            //                return;
+            //            }
+            //            float sigma;
+            //            if (!float.TryParse(args[3], out sigma))
+            //            {
+            //                Console.WriteLine("Strange number");
+            //            }
+            //            sigma = float.Parse(args[3]);
+            //            GaussImage(image, (int)(3 * sigma), sigma);
+            //            ImageIO.ImageToFile(image, OutputFileName);
+            //            break;
+            //        case "gradient":// (sigma)"
+            //            if (args.Length < 4)
+            //            {
+            //                Console.WriteLine("Not enough arguments.");
+            //                Console.ReadLine();
+            //                return;
+            //            }
+            //            if (args.Length > 4)
+            //            {
+            //                Console.WriteLine("Too many arguments.");
+            //                Console.ReadLine();
+            //                return;
+            //            }
+            //            float sigma_grad;
+            //            if (!float.TryParse(args[3], out sigma_grad))
+            //            {
+            //                Console.WriteLine("Strange number");
+            //            }
+            //            sigma_grad = float.Parse(args[3]);
+            //            GradientFromGaussImage(imageGray, (int)(3 * sigma_grad), sigma_grad);
+            //            ImageIO.ImageToFile(imageGray, OutputFileName);
+            //            break;
+            //        case "up_billinear":// (rad)"
+            //            if (args.Length < 4)
+            //            {
+            //                Console.WriteLine("Not enough arguments.");
+            //                Console.ReadLine();
+            //                return;
+            //            }
+            //            if (args.Length > 4)
+            //            {
+            //                Console.WriteLine("Too many arguments.");
+            //                Console.ReadLine();
+            //                return;
+            //            }
+            //            float number_up;
+            //            if (!float.TryParse(args[3], out number_up))
+            //            {
+            //                Console.WriteLine("Strange number");
+            //            }
+            //            number_up = float.Parse(args[3]);
+            //            BillinearInterpolation(image, number_up, OutputFileName);
+            //            break;
+            //        case "up_bicubic":// (rad)"
+            //            if (args.Length < 4)
+            //            {
+            //                Console.WriteLine("Not enough arguments.");
+            //                Console.ReadLine();
+            //                return;
+            //            }
+            //            if (args.Length > 4)
+            //            {
+            //                Console.WriteLine("Too many arguments.");
+            //                Console.ReadLine();
+            //                return;
+            //            }
+            //            float number_up_bic;
+            //            if (!float.TryParse(args[3], out number_up_bic))
+            //            {
+            //                Console.WriteLine("Strange number");
+            //            }
+            //            number_up_bic = float.Parse(args[3]);
+            //            BicubicInterpolation(image, number_up_bic, OutputFileName);
+            //            break;
+            //        case "downsample":// (rad)"
+            //            if (args.Length < 4)
+            //            {
+            //                Console.WriteLine("Not enough arguments.");
+            //                Console.ReadLine();
+            //                return;
+            //            }
+            //            if (args.Length > 4)
+            //            {
+            //                Console.WriteLine("Too many arguments.");
+            //                Console.ReadLine();
+            //                return;
+            //            }
+            //            float number_down;
+            //            if (!float.TryParse(args[3], out number_down))
+            //            {
+            //                Console.WriteLine("Strange number");
+            //            }
+            //            number_down = float.Parse(args[3]);
+            //            float sigmaDown = (float)Math.Sqrt(0.1f * (number_down * number_down - 1));
+            //            GaussImage(image, (int)(3 * sigmaDown), sigmaDown);
 
-                        DownSample(image, number_down, OutputFileName);
-                        break;
-                    case "metric":
-                        if (args.Length < 4)
-                        {
-                            Console.WriteLine("Not enough arguments.");
-                            Console.ReadLine();
-                            return;
-                        }
-                        if (!File.Exists(OutputFileName))
-                        {
-                            Console.WriteLine(" File doesn't exist");
-                            Console.ReadLine();
-                            return;
-                        }
-                        GrayscaleFloatImage image2 = ImageIO.FileToGrayscaleFloatImage(OutputFileName);
+            //            DownSample(image, number_down, OutputFileName);
+            //            break;
+            //        case "metric":
+            //            if (args.Length < 4)
+            //            {
+            //                Console.WriteLine("Not enough arguments.");
+            //                Console.ReadLine();
+            //                return;
+            //            }
+            //            if (!File.Exists(OutputFileName))
+            //            {
+            //                Console.WriteLine(" File doesn't exist");
+            //                Console.ReadLine();
+            //                return;
+            //            }
+            //            GrayscaleFloatImage image2 = ImageIO.FileToGrayscaleFloatImage(OutputFileName);
 
-                        switch (args[3])
-                        {
-                            case "mse":
-                                Console.WriteLine("MSE= " + mse_metric(imageGray, image2));
-                                break;
-                            case "psnr":
-                                Console.WriteLine("PSNR= " + psnr_metric(imageGray, image2));
-                                break;
-                            case "ssim":
-                                Console.WriteLine("SSIM= " + ssim_metric(imageGray, image2));
-                                break;
-                            case "mssim":
-                                Console.WriteLine("MSSIM= " + mssim_metric(imageGray, image2));
-                                break;
-                            default:
-                                Console.WriteLine("Wrong parametr.");
-                                return;
-                                break;
+            //            switch (args[3])
+            //            {
+            //                case "mse":
+            //                    Console.WriteLine("MSE= " + mse_metric(imageGray, image2));
+            //                    break;
+            //                case "psnr":
+            //                    Console.WriteLine("PSNR= " + psnr_metric(imageGray, image2));
+            //                    break;
+            //                case "ssim":
+            //                    Console.WriteLine("SSIM= " + ssim_metric(imageGray, image2));
+            //                    break;
+            //                case "mssim":
+            //                    Console.WriteLine("MSSIM= " + mssim_metric(imageGray, image2));
+            //                    break;
+            //                default:
+            //                    Console.WriteLine("Wrong parametr.");
+            //                    return;
+            //                    break;
 
-                        }
-                        break;
-                    case "dcci":
-                        if (args.Length > 3)
-                        {
-                            Console.WriteLine("Too many arguments.");
-                            Console.ReadLine();
-                            return;
-                        }
-                        dcci(image, 2, OutputFileName);
-                        //ImageIO.ImageToFile(imageGray, OutputFileName);
-                        break;
-                    case "canny":// (rad)"  "testCells/man_seg000.tif" "testCells/output/man_seg000_out.tif" "canny" "5" "0,01" "0,3"
-                        if (args.Length < 6)
-                        {
-                            Console.WriteLine("Not enough arguments.");
-                            Console.ReadLine();
-                            return;
-                        }
-                        if (args.Length > 6)
-                        {
-                            Console.WriteLine("Too many arguments.");
-                            Console.ReadLine();
-                            return;
-                        }
-                        float sigmaCanny;
-                        float h1;
-                        float h2;
-                        if ((!float.TryParse(args[3], out sigmaCanny)) || ((!float.TryParse(args[4], out h1)) || ((!float.TryParse(args[5], out h2)))))
-                        {
-                            Console.WriteLine("Strange number");
-                        }
-                        sigmaCanny = float.Parse(args[3]);
-                        h1 = float.Parse(args[4]);
-                        h2 = float.Parse(args[5]);
-                        Canny(imageGray, sigmaCanny, h1, h2, OutputFileName);
-                        break;
-                    case "dehighlight":
-                        if (args.Length < 3)
-                        {
-                            Console.WriteLine("Not enough arguments.");
-                            Console.ReadLine();
-                            return;
-                        }
-                        List<string> listOfNames = new List<string>();
-                        listOfNames.Add(InputFileName);
-                        for (int i=3;i<args.Length;i++)
-                        {
-                            listOfNames.Add(args[i]);
-                        }
-                        try
-                        {
-                            HightlightDe(listOfNames.ToArray(), OutputFileName);
-                        }
-                        catch (Exception ex)
-                        {
-                            Console.WriteLine("Something went wrong...Maybe input images was not good enough for Canny with parameters 5, 0.01f, 0.3f");
-                        }
+            //            }
+            //            break;
+            //        case "dcci":
+            //            if (args.Length > 3)
+            //            {
+            //                Console.WriteLine("Too many arguments.");
+            //                Console.ReadLine();
+            //                return;
+            //            }
+            //            dcci(image, 2, OutputFileName);
+            //            //ImageIO.ImageToFile(imageGray, OutputFileName);
+            //            break;
+            //        case "canny":// (rad)"  "testCells/man_seg000.tif" "testCells/output/man_seg000_out.tif" "canny" "5" "0,01" "0,3"
+            //            if (args.Length < 6)
+            //            {
+            //                Console.WriteLine("Not enough arguments.");
+            //                Console.ReadLine();
+            //                return;
+            //            }
+            //            if (args.Length > 6)
+            //            {
+            //                Console.WriteLine("Too many arguments.");
+            //                Console.ReadLine();
+            //                return;
+            //            }
+            //            float sigmaCanny;
+            //            float h1;
+            //            float h2;
+            //            if ((!float.TryParse(args[3], out sigmaCanny)) || ((!float.TryParse(args[4], out h1)) || ((!float.TryParse(args[5], out h2)))))
+            //            {
+            //                Console.WriteLine("Strange number");
+            //            }
+            //            sigmaCanny = float.Parse(args[3]);
+            //            h1 = float.Parse(args[4]);
+            //            h2 = float.Parse(args[5]);
+            //            Canny(imageGray, sigmaCanny, h1, h2, OutputFileName);
+            //            break;
+            //        case "dehighlight":
+            //            if (args.Length < 3)
+            //            {
+            //                Console.WriteLine("Not enough arguments.");
+            //                Console.ReadLine();
+            //                return;
+            //            }
+            //            List<string> listOfNames = new List<string>();
+            //            listOfNames.Add(InputFileName);
+            //            for (int i=3;i<args.Length;i++)
+            //            {
+            //                listOfNames.Add(args[i]);
+            //            }
+            //            try
+            //            {
+            //                HightlightDe(listOfNames.ToArray(), OutputFileName);
+            //            }
+            //            catch (Exception ex)
+            //            {
+            //                Console.WriteLine("Something went wrong...Maybe input images was not good enough for Canny with parameters 5, 0.01f, 0.3f");
+            //            }
 
-                        break;
+            //            break;
 
-                    case "ridge":
-                        //if (args.Length < 6)
-                        //{
-                        //    Console.WriteLine("Not enough arguments.");
-                        //    Console.ReadLine();
-                        //    return;
-                        //}
-                        //if (args.Length > 6)
-                        //{
-                        //    Console.WriteLine("Too many arguments.");
-                        //    Console.ReadLine();
-                        //    return;
-                        //}
-                        float sigma_r = 2f;
-                        RidgeDetection(imageGray, sigma_r, (int)(3 * sigma_r));
-                        //sigm, (int)(3 * sigm)
-                        //float sigmaCanny;
-                        //float h1;
-                        //float h2;
-                        //if ((!float.TryParse(args[3], out sigmaCanny)) || ((!float.TryParse(args[4], out h1)) || ((!float.TryParse(args[5], out h2)))))
-                        //{
-                        //    Console.WriteLine("Strange number");
-                        //}
-                        //sigmaCanny = float.Parse(args[3]);
-                        //h1 = float.Parse(args[4]);
-                        //h2 = float.Parse(args[5]);
-                        //Canny(imageGray, sigmaCanny, h1, h2, OutputFileName);
+            //        case "ridge":
+            //            //if (args.Length < 6)
+            //            //{
+            //            //    Console.WriteLine("Not enough arguments.");
+            //            //    Console.ReadLine();
+            //            //    return;
+            //            //}
+            //            //if (args.Length > 6)
+            //            //{
+            //            //    Console.WriteLine("Too many arguments.");
+            //            //    Console.ReadLine();
+            //            //    return;
+            //            //}
+            //            float sigma_r = 2f;
+            //            RidgeDetection(imageGray, sigma_r, (int)(3 * sigma_r), InputFileName);
+            //            //sigm, (int)(3 * sigm)
+            //            //float sigmaCanny;
+            //            //float h1;
+            //            //float h2;
+            //            //if ((!float.TryParse(args[3], out sigmaCanny)) || ((!float.TryParse(args[4], out h1)) || ((!float.TryParse(args[5], out h2)))))
+            //            //{
+            //            //    Console.WriteLine("Strange number");
+            //            //}
+            //            //sigmaCanny = float.Parse(args[3]);
+            //            //h1 = float.Parse(args[4]);
+            //            //h2 = float.Parse(args[5]);
+            //            //Canny(imageGray, sigmaCanny, h1, h2, OutputFileName);
                        
-                        break;
-                    default:
-                        Console.WriteLine("Wrong command : [" + command+"]");
-                        Console.ReadLine();
-                        return;
-                        break;
+            //            break;
 
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("Something went wrong...");
-            }
+            //        case "cannyW":// (rad)"  "testCells/man_seg000.tif" "testCells/output/man_seg000_out.tif" "canny" "5" "0,01" "0,3"
+            //            if (args.Length < 6)
+            //            {
+            //                Console.WriteLine("Not enough arguments.");
+            //                Console.ReadLine();
+            //                return;
+            //            }
+            //            if (args.Length > 6)
+            //            {
+            //                Console.WriteLine("Too many arguments.");
+            //                Console.ReadLine();
+            //                return;
+            //            }
+            //            float sigmaCannyWithout;
+            //            float h1Without;
+            //            float h2Without;
+            //            if ((!float.TryParse(args[3], out sigmaCannyWithout)) || ((!float.TryParse(args[4], out h1Without)) || ((!float.TryParse(args[5], out h2Without)))))
+            //            {
+            //                Console.WriteLine("Strange number");
+            //            }
+            //            sigmaCannyWithout = float.Parse(args[3]);
+            //            h1Without = float.Parse(args[4]);
+            //            h2Without = float.Parse(args[5]);
+            //            CannyWithOutNonMax(imageGray, sigmaCannyWithout, h1Without, h2Without, OutputFileName);
+            //            break;
+
+
+            //        default:
+            //            Console.WriteLine("Wrong command : [" + command+"]");
+            //            Console.ReadLine();
+            //            return;
+            //            break;
+
+            //    }
+            //}
+            //catch (Exception ex)
+            //{
+            //    Console.WriteLine("Something went wrong...");
+            //}
 
 
             // Console.WriteLine("Not enough arguments.");
@@ -5230,6 +6013,84 @@ namespace ImageProcessingTask1Master_sem1
             //ImageIO.ImageToFile(imageGray, OutputFileName);
             //ImageIO.ImageToFile(image, OutputFileName);
 
+
+            //testCells/aleksandra/DIC-C2DH-HeLa/01
+
+
+
+
+
+            ////for (int i = 0; i <= 114; i++)
+            ////{
+            ////    String s = "";
+            ////    if (i < 10)
+            ////    {
+
+            ////        s = "t00" + i + ".tif";
+            ////    }
+            ////    else if (i < 100)
+            ////    {
+            ////        s = "t0" + i + ".tif";
+
+            ////    }
+            ////    else
+            ////    {
+            ////        s = "t" + i + ".tif";
+            ////    }
+            //String s = "t000.tif";
+            ////    Console.WriteLine(s);
+
+            ////testCells/aleksandra/DIC-C2DH-HeLa/01
+            ////testCells/aleksandra/DIC-C2DH-HeLa/02
+            ////testCells/aleksandra/DIC-C2DH-HeLa_challenge/01
+            ////testCells/aleksandra/DIC-C2DH-HeLa_challenge/02
+            //string InputFileName = "testCells/" + s;                
+            //GrayscaleFloatImage imageGray = ImageIO.FileToGrayscaleFloatImage(InputFileName);
+
+            //String newFileRidge = InputFileName.Substring(0, InputFileName.Length - 4) + "_equ.tif";
+            ////GrayscaleFloatImage tmp = ImageIO.FileToGrayscaleFloatImage("testCells/output/ridges_tmp/Ridge.tif");
+            //eqhist(imageGray);
+            //ImageIO.ImageToFile(imageGray, newFileRidge);
+
+
+            //string InputFileName = "testCells/test.png" ;     
+            //float sigma_r_1 = 2f;
+            //GrayscaleFloatImage imageGray = ImageIO.FileToGrayscaleFloatImage(InputFileName);
+            //RidgeDetection(imageGray, sigma_r_1, (int)(3 * sigma_r_1), InputFileName);
+           
+            //string InputFileName2 = "testCells/wdg4.gif";
+            //GrayscaleFloatImage imageGray2 = ImageIO.FileToGrayscaleFloatImage(InputFileName2);
+            
+            //ZeroCrissing(imageGray2, sigma_r_1, (int)(3 * sigma_r_1), InputFileName2);
+            //ImageIO.ImageToFile(imageGray, newFileRidge);
+
+                
+           // }
+
+
+
+            //string InputFileName = "testCells/t000.tif";
+            //GrayscaleFloatImage imageGray = ImageIO.FileToGrayscaleFloatImage(InputFileName);
+
+            //String newFileRidge = InputFileName.Substring(0, InputFileName.Length - 4) + "_equ.tif";
+            ////GrayscaleFloatImage tmp = ImageIO.FileToGrayscaleFloatImage("testCells/output/ridges_tmp/Ridge.tif");
+            //eqhist(imageGray);
+            //ImageIO.ImageToFile(imageGray, newFileRidge);
+
+
+
+            //float sigma_r_1 = 2f;
+            //RidgeDetection(imageGray, sigma_r_1, (int)(3 * sigma_r_1), InputFileName);
+
+            ////GrayscaleFloatImage tmp = ImageIO.FileToGrayscaleFloatImage("testCells/output/ridges_tmp/Ridge.tif");
+            ////eqhist(tmp);
+            ////ImageIO.ImageToFile(tmp, "testCells/output/RidgeEqhistTmp.tif");
+
+            string InputFileName = "testCells/t000_Ridge.tif";
+            GrayscaleFloatImage imageGray = ImageIO.FileToGrayscaleFloatImage(InputFileName);
+
+            LocalStandartDeviation(imageGray, 3, InputFileName);
+    
             Console.WriteLine("Done");
             Console.ReadLine();
 
